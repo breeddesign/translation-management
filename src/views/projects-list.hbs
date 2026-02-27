@@ -1,0 +1,62 @@
+<!-- Projects List -->
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-bold text-gray-900">Projekte</h1>
+  <button
+    hx-get="/projects/new"
+    hx-target="#modal"
+    hx-swap="innerHTML"
+    class="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+  >
+    + Neues Projekt
+  </button>
+</div>
+
+{{#if projects.length}}
+<div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+  <table class="min-w-full divide-y divide-gray-200">
+    <thead class="bg-gray-50">
+      <tr>
+        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Videos</th>
+        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sprachen</th>
+        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Erstellt</th>
+        <th class="px-6 py-3"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-200">
+      {{#each projects}}
+      <tr class="hover:bg-gray-50 cursor-pointer" onclick="window.location='/projects/{{this.id}}'">
+        <td class="px-6 py-4 text-sm font-medium text-gray-900">{{this.name}}</td>
+        <td class="px-6 py-4 text-sm text-gray-600">{{this.video_count}}</td>
+        <td class="px-6 py-4 text-sm text-gray-600">
+          {{#each this.languages}}
+          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-700 mr-1">{{this}}</span>
+          {{/each}}
+        </td>
+        <td class="px-6 py-4">{{{statusBadge this.status}}}</td>
+        <td class="px-6 py-4 text-sm text-gray-500">{{formatDate this.created_at}}</td>
+        <td class="px-6 py-4 text-right">
+          <a href="/projects/{{this.id}}" class="text-blue-600 hover:text-blue-800 text-sm">Öffnen →</a>
+        </td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+</div>
+{{else}}
+<div class="text-center py-16 bg-white rounded-xl border border-gray-200">
+  <p class="text-gray-500 text-lg mb-4">Noch keine Projekte vorhanden.</p>
+  <button
+    hx-get="/projects/new"
+    hx-target="#modal"
+    hx-swap="innerHTML"
+    class="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+  >
+    + Erstes Projekt anlegen
+  </button>
+</div>
+{{/if}}
+
+<!-- Modal Container -->
+<div id="modal"></div>

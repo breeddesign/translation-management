@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="de" class="h-full bg-gray-50">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HeyGen Proofreader</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+  <script src="https://unpkg.com/htmx-ext-response-targets@2.0.2/response-targets.js"></script>
+  <style>
+    .htmx-indicator { display: none; }
+    .htmx-request .htmx-indicator { display: inline-block; }
+    .htmx-request.htmx-indicator { display: inline-block; }
+  </style>
+</head>
+<body class="h-full" hx-ext="response-targets">
+  <div class="min-h-full">
+    <!-- Nav -->
+    <nav class="bg-white border-b border-gray-200">
+      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div class="flex h-14 items-center justify-between">
+          <a href="/" class="flex items-center gap-2 text-lg font-semibold text-gray-900">
+            <span class="text-2xl">🎬</span> HeyGen Proofreader
+          </a>
+          <div class="flex items-center gap-4">
+            <a href="/" class="text-sm text-gray-600 hover:text-gray-900">Projekte</a>
+            <a href="/jobs" class="text-sm text-gray-600 hover:text-gray-900">Jobs</a>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Content -->
+    <main class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+      {{{body}}}
+    </main>
+  </div>
+</body>
+</html>

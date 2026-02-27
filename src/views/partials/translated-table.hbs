@@ -1,0 +1,38 @@
+{{#if translated.length}}
+<div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+  <table class="min-w-full divide-y divide-gray-200">
+    <thead class="bg-gray-50">
+      <tr>
+        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Video</th>
+        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sprache</th>
+        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Download</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-200">
+      {{#each translated}}
+      <tr class="hover:bg-gray-50">
+        <td class="px-4 py-3 text-sm font-medium text-gray-900">{{this.video_title}}</td>
+        <td class="px-4 py-3 text-sm text-gray-600">{{this.language}}</td>
+        <td class="px-4 py-3">{{{statusBadge this.status}}}</td>
+        <td class="px-4 py-3">
+          {{#if (eq this.status "completed")}}
+          <a href="{{this.video_url}}" target="_blank" class="text-xs text-blue-600 hover:underline">⬇ Download</a>
+          {{/if}}
+          {{#if (eq this.status "failed")}}
+          <span class="text-xs text-red-600" title="{{this.error_message}}">Fehler</span>
+          {{/if}}
+          {{#if (eq this.status "processing")}}
+          <span class="text-xs text-gray-400">⏳ Verarbeitung...</span>
+          {{/if}}
+        </td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+</div>
+{{else}}
+<div class="text-center py-12 bg-white rounded-xl border border-gray-200">
+  <p class="text-gray-500">Noch keine übersetzten Videos. Erst Proofreads editieren, dann "Videos generieren" klicken.</p>
+</div>
+{{/if}}

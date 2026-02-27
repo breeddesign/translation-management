@@ -1,0 +1,18 @@
+<!-- data-active tells the JS poller whether to use fast or slow interval -->
+<div data-active="{{#if hasActiveJobs}}true{{else}}false{{/if}}"></div>
+<div class="bg-white rounded-xl border border-gray-200 p-4">
+  <p class="text-2xl font-bold text-gray-900">{{stats.videos}}</p>
+  <p class="text-xs text-gray-500">Videos</p>
+</div>
+<div class="bg-white rounded-xl border border-gray-200 p-4">
+  <p class="text-2xl font-bold text-blue-600">{{stats.proofreads_processing}}</p>
+  <p class="text-xs text-gray-500">Proofreads in Arbeit</p>
+</div>
+<div class="bg-white rounded-xl border border-gray-200 p-4">
+  <p class="text-2xl font-bold text-green-600">{{stats.proofreads_completed}}</p>
+  <p class="text-xs text-gray-500">Proofreads fertig</p>
+</div>
+<div class="bg-white rounded-xl border border-gray-200 p-4">
+  <p class="text-2xl font-bold text-emerald-600">{{stats.translated_completed}}</p>
+  <p class="text-xs text-gray-500">Videos übersetzt</p>
+</div>

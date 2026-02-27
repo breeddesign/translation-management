@@ -1,0 +1,61 @@
+<!-- Modal Overlay -->
+<div class="fixed inset-0 bg-black/50 z-40" onclick="document.getElementById('modal').innerHTML=''"></div>
+<div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6">
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-xl font-bold text-gray-900">Videos hinzufügen</h2>
+      <button onclick="document.getElementById('modal').innerHTML=''" class="text-gray-400 hover:text-gray-600">✕</button>
+    </div>
+
+    <!-- Tab: URL-Eingabe -->
+    <div class="mb-4">
+      <label class="block text-sm font-medium text-gray-700 mb-1">Video-URLs (eine pro Zeile)</label>
+      <textarea
+        id="video-urls"
+        rows="8"
+        class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+        placeholder="https://example.com/video1.mp4&#10;https://example.com/video2.mp4&#10;https://drive.google.com/file/d/..."
+      ></textarea>
+      <p class="text-xs text-gray-500 mt-1">Unterstützt: Direkte MP4-URLs, Google Drive, YouTube (öffentlich)</p>
+    </div>
+
+    <div class="flex justify-end gap-3">
+      <button type="button" onclick="document.getElementById('modal').innerHTML=''"
+        class="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Abbrechen</button>
+      <button
+        type="button"
+        onclick="submitVideos('{{projectId}}')"
+        class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+      >Videos hinzufügen</button>
+    </div>
+  </div>
+</div>
+
+<script>
+async function submitVideos(projectId) {
+  const urls = document.getElementById('video-urls').value
+    .split('\n')
+    .map(u => u.trim())
+    .filter(u => u.length > 0);
+
+  if (urls.length === 0) return alert('Bitte mindestens eine URL eingeben.');
+
+  const videos = urls.map((url, i) => ({
+    title: url.split('/').pop()?.split('?')[0] || `Video ${i + 1}`,
+    video_url: url,
+    original_filename: url.split('/').pop()?.split('?')[0] || null,
+  }));
+
+  const res = await fetch(`/api/projects/${projectId}/videos`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ videos }),
+  });
+
+  if (res.ok) {
+    window.location.reload();
+  } else {
+    alert('Fehler beim Hinzufügen der Videos.');
+  }
+}
+</script>

@@ -1,0 +1,88 @@
+<!-- Modal Overlay -->
+<div class="fixed inset-0 bg-black/50 z-40" onclick="document.getElementById('modal').innerHTML=''"></div>
+<div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6">
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-xl font-bold text-gray-900">Neues Projekt</h2>
+      <button onclick="document.getElementById('modal').innerHTML=''" class="text-gray-400 hover:text-gray-600">✕</button>
+    </div>
+
+    <form
+      hx-post="/api/projects"
+      hx-target="body"
+      hx-swap="innerHTML"
+      hx-headers='{"Content-Type": "application/json"}'
+      hx-ext="json-enc"
+    >
+      <!-- Name -->
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 mb-1">Projektname</label>
+        <input
+          type="text" name="name" required
+          class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          placeholder="z.B. Kurs Mathematik Q1"
+        >
+      </div>
+
+      <!-- Mode -->
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 mb-1">Modus</label>
+        <select name="settings.mode" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+          <option value="fast">Fast (Speed) – 1× Credits</option>
+          <option value="quality">Quality (Precision) – 2× Credits</option>
+        </select>
+      </div>
+
+      <!-- Languages -->
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 mb-1">Zielsprachen</label>
+        <div class="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto border rounded-lg p-3">
+          {{#each languages}}
+          <label class="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="settings.output_languages" value="{{this}}" class="rounded border-gray-300">
+            {{this}}
+          </label>
+          {{/each}}
+        </div>
+      </div>
+
+      <!-- Speaker Num -->
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 mb-1">Anzahl Sprecher</label>
+        <input type="number" name="settings.speaker_num" value="1" min="1" max="10"
+          class="w-24 rounded-lg border border-gray-300 px-3 py-2 text-sm">
+      </div>
+
+      <!-- Toggles -->
+      <div class="space-y-3 mb-6">
+        <label class="flex items-center gap-3 text-sm">
+          <input type="checkbox" name="settings.enable_speech_enhancement" checked class="rounded border-gray-300">
+          Enhance Voice
+        </label>
+        <label class="flex items-center gap-3 text-sm">
+          <input type="checkbox" name="settings.enable_video_stretching" class="rounded border-gray-300">
+          Dynamic Duration (Video Stretching)
+        </label>
+        <label class="flex items-center gap-3 text-sm">
+          <input type="checkbox" name="settings.disable_music_track" class="rounded border-gray-300">
+          Remove Background Sound
+        </label>
+        <label class="flex items-center gap-3 text-sm">
+          <input type="checkbox" name="settings.translate_audio_only" class="rounded border-gray-300">
+          Nur Audio (kein Lipsync)
+        </label>
+        <label class="flex items-center gap-3 text-sm">
+          <input type="checkbox" name="settings.captions" checked class="rounded border-gray-300">
+          Captions aktivieren
+        </label>
+      </div>
+
+      <div class="flex justify-end gap-3">
+        <button type="button" onclick="document.getElementById('modal').innerHTML=''"
+          class="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Abbrechen</button>
+        <button type="submit"
+          class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Projekt anlegen</button>
+      </div>
+    </form>
+  </div>
+</div>
