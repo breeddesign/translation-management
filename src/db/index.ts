@@ -112,5 +112,5 @@ const pool = createPool({
 });
 
 export const db = new Kysely<Database>({
-  dialect: new MysqlDialect({ pool: pool.promise() }),
+  dialect: new MysqlDialect({ pool: pool as any }),
 });

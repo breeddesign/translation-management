@@ -1,8 +1,10 @@
 import Handlebars from "handlebars";
 import { readFileSync } from "fs";
-import { join } from "path";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 
-const VIEWS_DIR = join(import.meta.dirname, "..", "views");
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const VIEWS_DIR = join(__dirname, "..", "views");
 const cache = new Map<string, HandlebarsTemplateDelegate>();
 
 // ── Load & compile template ─────────────────────────────────
