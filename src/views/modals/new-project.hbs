@@ -4,7 +4,7 @@
   <div class="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6">
     <div class="flex items-center justify-between mb-6">
       <h2 class="text-xl font-bold text-gray-900">Neues Projekt</h2>
-      <button onclick="document.getElementById('modal').innerHTML=''" class="text-gray-400 hover:text-gray-600">✕</button>
+      <button onclick="document.getElementById('modal').innerHTML=''" class="text-gray-400 hover:text-gray-600"><span class="material-symbols-rounded">close</span></button>
     </div>
 
     <form
@@ -23,6 +23,29 @@
           placeholder="z.B. Kurs Mathematik Q1"
         >
       </div>
+
+      <!-- HeyGen Folder -->
+      {{#if preselectedFolderId}}
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 mb-1">HeyGen Ordner</label>
+        <input type="hidden" name="heygen_folder_id" value="{{preselectedFolderId}}">
+        <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-sm text-gray-700">
+          <span class="material-symbols-rounded text-yellow-500" style="font-size:16px">folder</span>
+          {{preselectedFolderName}}
+        </div>
+      </div>
+      {{else if hasFolders}}
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 mb-1">HeyGen Ordner</label>
+        <select name="heygen_folder_id" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+          <option value="">Neuen Ordner erstellen</option>
+          {{#each folders}}
+          <option value="{{this.id}}">{{this.name}}</option>
+          {{/each}}
+        </select>
+        <p class="mt-1 text-xs text-gray-500">Bestehenden HeyGen-Ordner verwenden oder einen neuen anlegen</p>
+      </div>
+      {{/if}}
 
       <!-- Mode -->
       <div class="mb-4">

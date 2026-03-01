@@ -1,6 +1,6 @@
 import type { Job } from "bullmq";
 import { nanoid } from "nanoid";
-import { db, type ProjectSettings } from "../../db/index.js";
+import { db, type ProjectSettings, parseSettings } from "../../db/index.js";
 import * as heygen from "../../services/heygen.js";
 import { transitionProofread } from "../../lib/state-machine.js";
 import { RateLimiter, withJitter } from "../../lib/rate-limiter.js";
@@ -17,7 +17,7 @@ export function createProofreadProcessor(rateLimiter: RateLimiter, queues: Queue
 
     const project = await db.selectFrom("projects").selectAll().where("id", "=", projectId).executeTakeFirstOrThrow();
     const video = await db.selectFrom("videos").selectAll().where("id", "=", videoId).executeTakeFirstOrThrow();
-    const settings: ProjectSettings = JSON.parse(project.settings);
+    const settings: ProjectSettings = parseSettings(project.settings);
 
     // Acquire rate limit token before calling HeyGen
     await rateLimiter.acquire();

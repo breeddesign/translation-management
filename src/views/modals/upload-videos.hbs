@@ -4,7 +4,7 @@
   <div class="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6">
     <div class="flex items-center justify-between mb-6">
       <h2 class="text-xl font-bold text-gray-900">Videos hinzufügen</h2>
-      <button onclick="document.getElementById('modal').innerHTML=''" class="text-gray-400 hover:text-gray-600">✕</button>
+      <button onclick="document.getElementById('modal').innerHTML=''" class="text-gray-400 hover:text-gray-600"><span class="material-symbols-rounded">close</span></button>
     </div>
 
     <!-- Tab: URL-Eingabe -->
@@ -14,9 +14,9 @@
         id="video-urls"
         rows="8"
         class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-        placeholder="https://example.com/video1.mp4&#10;https://example.com/video2.mp4&#10;https://drive.google.com/file/d/..."
+        placeholder="Mein Video | https://example.com/video1.mp4&#10;https://example.com/video2.mp4&#10;Titel | https://drive.google.com/file/d/..."
       ></textarea>
-      <p class="text-xs text-gray-500 mt-1">Unterstützt: Direkte MP4-URLs, Google Drive, YouTube (öffentlich)</p>
+      <p class="text-xs text-gray-500 mt-1">Format: <code>Titel | URL</code> oder nur <code>URL</code> (Titel wird aus URL abgeleitet)</p>
     </div>
 
     <div class="flex justify-end gap-3">
@@ -24,6 +24,7 @@
         class="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Abbrechen</button>
       <button
         type="button"
+        id="submit-videos-btn"
         onclick="submitVideos('{{projectId}}')"
         class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
       >Videos hinzufügen</button>
@@ -32,30 +33,77 @@
 </div>
 
 <script>
+function extractVideoName(url, index) {
+  try {
+    const u = new URL(url);
+    // Google Drive: /file/d/ID/view → use ID
+    const driveMatch = u.pathname.match(/\/file\/d\/([^/]+)/);
+    if (driveMatch) return `Google Drive Video ${index}`;
+    // Dropbox, S3, etc: find last segment that looks like a filename
+    const segments = u.pathname.split('/').filter(Boolean);
+    for (let i = segments.length - 1; i >= 0; i--) {
+      const seg = decodeURIComponent(segments[i]);
+      if (/\.\w{2,4}$/.test(seg)) return seg; // has file extension
+    }
+    // Fallback: last meaningful segment (skip generic ones)
+    const skip = new Set(['view', 'download', 'edit', 'preview', 'embed']);
+    for (let i = segments.length - 1; i >= 0; i--) {
+      const seg = decodeURIComponent(segments[i]);
+      if (!skip.has(seg.toLowerCase()) && seg.length > 2) return seg;
+    }
+  } catch {}
+  return `Video ${index}`;
+}
+
 async function submitVideos(projectId) {
-  const urls = document.getElementById('video-urls').value
+  const btn = document.getElementById('submit-videos-btn');
+  if (btn.disabled) return;
+
+  const lines = document.getElementById('video-urls').value
     .split('\n')
-    .map(u => u.trim())
-    .filter(u => u.length > 0);
+    .map(l => l.trim())
+    .filter(l => l.length > 0);
 
-  if (urls.length === 0) return alert('Bitte mindestens eine URL eingeben.');
+  if (lines.length === 0) return alert('Bitte mindestens eine URL eingeben.');
 
-  const videos = urls.map((url, i) => ({
-    title: url.split('/').pop()?.split('?')[0] || `Video ${i + 1}`,
-    video_url: url,
-    original_filename: url.split('/').pop()?.split('?')[0] || null,
-  }));
+  btn.disabled = true;
+  btn.textContent = 'Wird hinzugefügt…';
+  btn.classList.add('opacity-50', 'cursor-not-allowed');
 
-  const res = await fetch(`/api/projects/${projectId}/videos`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ videos }),
+  const videos = lines.map((line, i) => {
+    let title, url;
+    // Support "Titel | URL" format
+    const pipeIdx = line.indexOf('|');
+    if (pipeIdx > 0 && line.substring(pipeIdx + 1).trim().startsWith('http')) {
+      title = line.substring(0, pipeIdx).trim();
+      url = line.substring(pipeIdx + 1).trim();
+    } else {
+      url = line;
+      title = extractVideoName(url, i + 1);
+    }
+    return { title, video_url: url, original_filename: title };
   });
 
-  if (res.ok) {
-    window.location.reload();
-  } else {
-    alert('Fehler beim Hinzufügen der Videos.');
+  try {
+    const res = await fetch(`/api/projects/${projectId}/videos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ videos }),
+    });
+
+    if (res.ok) {
+      window.location.reload();
+    } else {
+      alert('Fehler beim Hinzufügen der Videos.');
+      btn.disabled = false;
+      btn.textContent = 'Videos hinzufügen';
+      btn.classList.remove('opacity-50', 'cursor-not-allowed');
+    }
+  } catch (e) {
+    alert('Netzwerkfehler.');
+    btn.disabled = false;
+    btn.textContent = 'Videos hinzufügen';
+    btn.classList.remove('opacity-50', 'cursor-not-allowed');
   }
 }
 </script>

@@ -1,12 +1,13 @@
 import { Hono } from "hono";
-import { db, type ProjectSettings } from "../db/index.js";
+import { db, type ProjectSettings, parseSettings } from "../db/index.js";
 import { render, renderPartial } from "../lib/templates.js";
+import * as heygen from "../services/heygen.js";
 
 export const pages = new Hono();
 
-// ── Available languages (cache from HeyGen or hardcode common ones) ─
+// ── Fallback languages (used when HeyGen API is unreachable) ─
 
-const COMMON_LANGUAGES = [
+const FALLBACK_LANGUAGES = [
   "English", "German", "French", "Spanish", "Italian", "Portuguese",
   "Dutch", "Polish", "Russian", "Turkish", "Arabic", "Hindi",
   "Japanese", "Korean", "Chinese", "Swedish", "Norwegian", "Danish",
@@ -14,41 +15,168 @@ const COMMON_LANGUAGES = [
   "Vietnamese", "Filipino", "Malay", "Ukrainian",
 ];
 
-// ── Projects List ───────────────────────────────────────────
+// ── Folder tree helper ──────────────────────────────────────
+
+interface FolderNode {
+  id: string;
+  name: string;
+  parent_id: string | null;
+  children: FolderNode[];
+  project_count: number;
+}
+
+function buildFolderTree(
+  folders: Array<{ id: string; name: string; parent_id: string | null }>,
+  projectsByFolder: Map<string, number>
+): FolderNode[] {
+  const nodeMap = new Map<string, FolderNode>();
+
+  for (const f of folders) {
+    nodeMap.set(f.id, {
+      id: f.id,
+      name: f.name,
+      parent_id: f.parent_id,
+      children: [],
+      project_count: projectsByFolder.get(f.id) ?? 0,
+    });
+  }
+
+  const roots: FolderNode[] = [];
+  for (const node of nodeMap.values()) {
+    if (node.parent_id && nodeMap.has(node.parent_id)) {
+      nodeMap.get(node.parent_id)!.children.push(node);
+    } else {
+      roots.push(node);
+    }
+  }
+
+  // Sort children alphabetically
+  const sortChildren = (nodes: FolderNode[]) => {
+    nodes.sort((a, b) => a.name.localeCompare(b.name));
+    nodes.forEach((n) => sortChildren(n.children));
+  };
+  sortChildren(roots);
+
+  return roots;
+}
+
+async function loadFolderData() {
+  const [foldersRes, projects] = await Promise.all([
+    heygen.listFolders(),
+    db.selectFrom("projects").select(["id", "name", "heygen_folder_id", "status"]).execute(),
+  ]);
+
+  // Count projects per folder
+  const projectsByFolder = new Map<string, number>();
+  for (const p of projects) {
+    if (p.heygen_folder_id) {
+      projectsByFolder.set(p.heygen_folder_id, (projectsByFolder.get(p.heygen_folder_id) ?? 0) + 1);
+    }
+  }
+
+  const tree = buildFolderTree(foldersRes.data.folders, projectsByFolder);
+  return { tree, folders: foldersRes.data.folders, projects };
+}
+
+// ── Folder Browser (Home) ───────────────────────────────────
 
 pages.get("/", async (c) => {
-  const projects = await db
-    .selectFrom("projects")
-    .selectAll()
-    .orderBy("created_at", "desc")
-    .execute();
+  try {
+    const { tree, projects } = await loadFolderData();
 
-  // Enrich with video count and languages
-  const enriched = await Promise.all(
-    projects.map(async (p) => {
+    return c.html(render("folder-browser", {
+      tree,
+      selectedFolder: null,
+      projects,
+    }));
+  } catch (err) {
+    console.warn("Could not load folders, falling back to project list:", err);
+    // Fallback: show simple project list
+    const projects = await db.selectFrom("projects").selectAll().orderBy("created_at", "desc").execute();
+    const enriched = await Promise.all(
+      projects.map(async (p) => {
+        const [{ count }] = await db
+          .selectFrom("videos")
+          .select(db.fn.countAll().as("count"))
+          .where("project_id", "=", p.id)
+          .execute();
+        const settings: ProjectSettings = parseSettings(p.settings);
+        return { ...p, video_count: count, languages: settings.output_languages };
+      })
+    );
+    return c.html(render("projects-list", { projects: enriched }));
+  }
+});
+
+// ── Folder Content (HTMX partial) ───────────────────────────
+
+pages.get("/folders/:id", async (c) => {
+  const folderId = c.req.param("id");
+  const { tree, folders, projects } = await loadFolderData();
+
+  const folder = folders.find((f) => f.id === folderId);
+  const childFolders = folders.filter((f) => f.parent_id === folderId);
+  const folderProjects = projects.filter((p) => p.heygen_folder_id === folderId);
+
+  // Enrich projects with video count
+  const enrichedProjects = await Promise.all(
+    folderProjects.map(async (p) => {
       const [{ count }] = await db
         .selectFrom("videos")
         .select(db.fn.countAll().as("count"))
         .where("project_id", "=", p.id)
         .execute();
-
-      const settings: ProjectSettings = JSON.parse(p.settings);
-      return {
-        ...p,
-        video_count: count,
-        languages: settings.output_languages,
-      };
+      return { ...p, video_count: count };
     })
   );
 
-  return c.html(render("projects-list", { projects: enriched }));
+  return c.html(renderPartial("partials/folder-content", {
+    folder: folder ?? { id: folderId, name: "Ordner" },
+    childFolders,
+    projects: enrichedProjects,
+    hasChildren: childFolders.length > 0,
+    hasProjects: enrichedProjects.length > 0,
+  }));
+});
+
+// ── Full page folder view (for direct navigation) ───────────
+
+pages.get("/folders/:id/view", async (c) => {
+  const folderId = c.req.param("id");
+  const { tree } = await loadFolderData();
+
+  return c.html(render("folder-browser", {
+    tree,
+    selectedFolderId: folderId,
+  }));
 });
 
 // ── New Project Modal ───────────────────────────────────────
 
 pages.get("/projects/new", async (c) => {
+  const preselectedFolderId = c.req.query("folder_id") ?? "";
+  const preselectedFolderName = c.req.query("folder_name") ?? "";
+
+  let folders: Array<{ id: string; name: string }> = [];
+  let languages: string[] = FALLBACK_LANGUAGES;
+
+  try {
+    const [foldersRes, langsRes] = await Promise.all([
+      heygen.listFolders(),
+      heygen.listSupportedLanguages(),
+    ]);
+    folders = foldersRes.data.folders.map((f) => ({ id: f.id, name: f.name }));
+    languages = langsRes.data.languages;
+  } catch (err) {
+    console.warn("Could not load HeyGen data, using fallbacks:", err);
+  }
+
   return c.html(renderPartial("modals/new-project", {
-    languages: COMMON_LANGUAGES,
+    folders,
+    hasFolders: folders.length > 0,
+    languages,
+    preselectedFolderId,
+    preselectedFolderName,
   }));
 });
 
@@ -104,7 +232,7 @@ pages.get("/projects/:id", async (c) => {
     };
   });
 
-  const settings: ProjectSettings = JSON.parse(project.settings);
+  const settings: ProjectSettings = parseSettings(project.settings);
 
   return c.html(
     render("project-detail", {

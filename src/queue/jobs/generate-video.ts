@@ -1,6 +1,6 @@
 import type { Job } from "bullmq";
 import { nanoid } from "nanoid";
-import { db, type ProjectSettings } from "../../db/index.js";
+import { db, type ProjectSettings, parseSettings } from "../../db/index.js";
 import * as heygen from "../../services/heygen.js";
 import { transitionProofread } from "../../lib/state-machine.js";
 import { RateLimiter, withJitter } from "../../lib/rate-limiter.js";
@@ -32,7 +32,7 @@ export function createGenerateVideoProcessor(rateLimiter: RateLimiter, queues: Q
       .where("id", "=", proofread.project_id)
       .executeTakeFirstOrThrow();
 
-    const settings: ProjectSettings = JSON.parse(project.settings);
+    const settings: ProjectSettings = parseSettings(project.settings);
 
     await rateLimiter.acquire();
 

@@ -1,0 +1,89 @@
+<div>
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-xl font-bold text-gray-900">{{folder.name}}</h1>
+      <p class="text-sm text-gray-500 mt-0.5">
+        {{#if hasChildren}}{{childFolders.length}} Unterordner{{/if}}
+        {{#if hasProjects}}{{#if hasChildren}} &middot; {{/if}}{{projects.length}} Projekte{{/if}}
+        {{#unless hasChildren}}{{#unless hasProjects}}Leer{{/unless}}{{/unless}}
+      </p>
+    </div>
+    <div class="flex items-center gap-2">
+      <button onclick="document.getElementById('new-subfolder-{{folder.id}}').classList.toggle('hidden')"
+        class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">
+        <span class="material-symbols-rounded" style="font-size:16px">create_new_folder</span> Unterordner
+      </button>
+      <button hx-get="/projects/new?folder_id={{folder.id}}&folder_name={{folder.name}}" hx-target="#modal" hx-swap="innerHTML"
+        class="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">
+        <span class="material-symbols-rounded" style="font-size:16px">add</span> Neues Projekt
+      </button>
+    </div>
+  </div>
+
+  <!-- Inline form: new subfolder -->
+  <form id="new-subfolder-{{folder.id}}" class="hidden mb-4"
+    hx-post="/api/folders"
+    hx-headers='{"Content-Type": "application/json"}'
+    hx-ext="json-enc"
+    hx-target="body" hx-swap="innerHTML">
+    <input type="hidden" name="parent_id" value="{{folder.id}}">
+    <div class="flex gap-2 items-center">
+      <input type="text" name="name" placeholder="Name des Unterordners" required
+        class="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 w-64">
+      <button type="submit" class="rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700">Erstellen</button>
+      <button type="button" onclick="this.closest('form').classList.add('hidden')"
+        class="text-sm text-gray-500 hover:text-gray-700">Abbrechen</button>
+    </div>
+  </form>
+
+  <!-- Subfolders -->
+  {{#if hasChildren}}
+  <div class="mb-6">
+    <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Unterordner</h3>
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      {{#each childFolders}}
+      <div class="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 cursor-pointer transition-colors"
+        hx-get="/folders/{{this.id}}" hx-target="#folder-content" hx-swap="innerHTML">
+        <span class="material-symbols-rounded text-yellow-500 flex-shrink-0" style="font-size:32px">folder</span>
+        <span class="text-sm font-medium text-gray-800 truncate">{{this.name}}</span>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+
+  <!-- Projects in this folder -->
+  {{#if hasProjects}}
+  <div>
+    <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Projekte</h3>
+    <div class="space-y-2">
+      {{#each projects}}
+      <a href="/projects/{{this.id}}"
+        class="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+            <span class="material-symbols-rounded text-blue-600" style="font-size:18px">videocam</span>
+          </div>
+          <div>
+            <p class="text-sm font-medium text-gray-900">{{this.name}}</p>
+            <p class="text-xs text-gray-500">{{this.video_count}} Videos</p>
+          </div>
+        </div>
+        {{statusBadge this.status}}
+      </a>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+
+  {{#unless hasChildren}}
+  {{#unless hasProjects}}
+  <div class="flex flex-col items-center justify-center py-16 text-gray-400">
+    <span class="material-symbols-rounded" style="font-size:48px">folder_open</span>
+    <p class="text-sm">Dieser Ordner ist leer</p>
+    <p class="text-xs mt-1">Erstelle ein neues Projekt oder einen Unterordner.</p>
+  </div>
+  {{/unless}}
+  {{/unless}}
+</div>

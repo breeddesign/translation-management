@@ -14,6 +14,11 @@ export interface ProjectSettings {
   captions: boolean;
 }
 
+/** MySQL JSON columns are returned as already-parsed objects by mysql2. */
+export function parseSettings(settings: string | ProjectSettings): ProjectSettings {
+  return typeof settings === "string" ? JSON.parse(settings) : settings;
+}
+
 export interface ProjectTable {
   id: string;
   name: string;

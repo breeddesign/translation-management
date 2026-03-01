@@ -17,13 +17,13 @@
         <td class="px-4 py-3">{{{statusBadge this.status}}}</td>
         <td class="px-4 py-3">
           {{#if (eq this.status "completed")}}
-          <a href="{{this.video_url}}" target="_blank" class="text-xs text-blue-600 hover:underline">⬇ Download</a>
+          <a href="{{this.video_url}}" target="_blank" class="text-xs text-blue-600 hover:underline"><span class="material-symbols-rounded" style="font-size:14px">download</span> Download</a>
           {{/if}}
           {{#if (eq this.status "failed")}}
           <span class="text-xs text-red-600" title="{{this.error_message}}">Fehler</span>
           {{/if}}
           {{#if (eq this.status "processing")}}
-          <span class="text-xs text-gray-400">⏳ Verarbeitung...</span>
+          <span class="text-xs text-gray-400"><span class="material-symbols-rounded" style="font-size:14px">hourglass_top</span> Verarbeitung...</span>
           {{/if}}
         </td>
       </tr>

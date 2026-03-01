@@ -1,0 +1,25 @@
+<li>
+  <div class="group flex items-center gap-1 px-2 py-1.5 rounded-md text-sm cursor-pointer hover:bg-gray-200 transition-colors"
+    hx-get="/folders/{{id}}" hx-target="#folder-content" hx-swap="innerHTML">
+    {{#if children.length}}
+    <button onclick="event.stopPropagation(); this.closest('li').querySelector('ul').classList.toggle('hidden'); this.querySelector('.tree-chevron').classList.toggle('rotate-90')"
+      class="flex-shrink-0 w-4 h-4 text-gray-400">
+      <span class="material-symbols-rounded tree-chevron transition-transform rotate-90" style="font-size:16px">chevron_right</span>
+    </button>
+    {{else}}
+    <span class="w-4 flex-shrink-0"></span>
+    {{/if}}
+    <span class="material-symbols-rounded text-yellow-500 flex-shrink-0" style="font-size:16px">folder</span>
+    <span class="truncate flex-1">{{name}}</span>
+    {{#if project_count}}
+    <span class="text-xs text-gray-400 flex-shrink-0">{{project_count}}</span>
+    {{/if}}
+  </div>
+  {{#if children.length}}
+  <ul class="ml-4 space-y-0.5">
+    {{#each children}}
+    {{> folderTreeItem this}}
+    {{/each}}
+  </ul>
+  {{/if}}
+</li>

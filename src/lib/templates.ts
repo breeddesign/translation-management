@@ -38,6 +38,23 @@ export function renderPartial(
   return tmpl(data);
 }
 
+// ── Register Partials ───────────────────────────────────────
+
+const partialFiles = [
+  ["folderTreeItem", "folder-tree-item.hbs"],
+  ["folder-content", "folder-content.hbs"],
+  ["status-cards", "status-cards.hbs"],
+  ["proofreads-table", "proofreads-table.hbs"],
+  ["translated-table", "translated-table.hbs"],
+] as const;
+
+for (const [name, file] of partialFiles) {
+  Handlebars.registerPartial(
+    name,
+    readFileSync(join(VIEWS_DIR, "partials", file), "utf-8")
+  );
+}
+
 // ── Register Helpers ────────────────────────────────────────
 
 Handlebars.registerHelper("statusBadge", (status: string) => {

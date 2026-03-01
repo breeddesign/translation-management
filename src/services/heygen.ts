@@ -76,21 +76,16 @@ interface FolderResult {
   project_type: string;
 }
 
-interface SupportedLanguage {
-  language: string;
-  code: string;
-}
-
 // ── Folders ─────────────────────────────────────────────────
 
 export async function createFolder(
   name: string,
-  projectType: string = "video_translate"
+  projectType: string = "video_translate",
+  parentId?: string
 ) {
-  return request<HeyGenResponse<FolderResult>>("POST", "/v1/folders/create", {
-    name,
-    project_type: projectType,
-  });
+  const body: Record<string, string> = { name, project_type: projectType };
+  if (parentId) body.parent_id = parentId;
+  return request<HeyGenResponse<FolderResult>>("POST", "/v1/folders/create", body);
 }
 
 export async function listFolders() {
@@ -103,7 +98,7 @@ export async function listFolders() {
 // ── Languages ───────────────────────────────────────────────
 
 export async function listSupportedLanguages() {
-  return request<HeyGenResponse<{ languages: SupportedLanguage[] }>>(
+  return request<HeyGenResponse<{ languages: string[] }>>(
     "GET",
     "/v2/video_translate/target_languages"
   );
