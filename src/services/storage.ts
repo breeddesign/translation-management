@@ -67,7 +67,11 @@ import { createHmac } from "crypto";
 
 function createLocalStorage(): StorageAdapter {
   const basePath = config.storage.local.path;
-  const baseUrl = config.storage.local.baseUrl;
+  // Die Desktop-App bindet einen frei gewählten Port, der zum Zeitpunkt der
+  // Storage-Initialisierung noch nicht feststeht. Relative URLs lösen gegen die
+  // Origin der Seite auf und bleiben dadurch immer korrekt; der Server-Modus
+  // behält die konfigurierte absolute URL.
+  const baseUrl = config.isDesktop ? "/files" : config.storage.local.baseUrl;
 
   // Sign URLs with HMAC so only our server can validate them
   function signUrl(key: string, expiresAt: number): string {

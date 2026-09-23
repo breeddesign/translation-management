@@ -151,10 +151,17 @@
   <div class="flex items-center justify-between mb-4">
     <h2 class="text-lg font-semibold text-gray-900">Übersetzte Videos</h2>
     {{#if hasCompletedTranslations}}
-    <a
-      href="/api/projects/{{project.id}}/downloads"
-      class="rounded-lg bg-gray-800 px-3 py-2 text-sm font-medium text-white hover:bg-gray-900"
-    ><span class="material-symbols-rounded">download</span> Alle herunterladen (ZIP)</a>
+    <div class="flex items-center gap-2">
+      <button
+        hx-post="/api/projects/{{project.id}}/pull-assets"
+        hx-swap="none"
+        class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+      ><span class="material-symbols-rounded">cloud_download</span> Assets von HeyGen ziehen</button>
+      <a
+        href="/api/projects/{{project.id}}/downloads"
+        class="rounded-lg bg-gray-800 px-3 py-2 text-sm font-medium text-white hover:bg-gray-900"
+      ><span class="material-symbols-rounded">download</span> Download-Links (JSON)</a>
+    </div>
     {{/if}}
   </div>
 

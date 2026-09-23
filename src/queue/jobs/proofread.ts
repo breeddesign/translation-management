@@ -1,9 +1,10 @@
-import type { Job } from "bullmq";
+import type { JobLike as Job } from "../types.js";
 import { nanoid } from "nanoid";
-import { db, type ProjectSettings, parseSettings } from "../../db/index.js";
+import { db, isDuplicateKeyError, type ProjectSettings, parseSettings } from "../../db/index.js";
 import * as heygen from "../../services/heygen.js";
 import { transitionProofread } from "../../lib/state-machine.js";
-import { RateLimiter, withJitter } from "../../lib/rate-limiter.js";
+import { withJitter } from "../../lib/rate-limiter.js";
+import type { RateLimiter } from "../../lib/rate-limiter.js";
 import type { Queues } from "../index.js";
 
 interface ProofreadJobData {
@@ -22,11 +23,11 @@ export function createProofreadProcessor(rateLimiter: RateLimiter, queues: Queue
     // Acquire rate limit token before calling HeyGen
     await rateLimiter.acquire();
 
-    const result = await heygen.generateProofread({
+    const result = await heygen.createProofreadSession({
       video_url: video.video_url,
       title: video.title,
       output_languages: settings.output_languages,
-      brand_voice_id: settings.brand_voice_id ?? undefined,
+      mode: heygen.toApiMode(settings.mode),
       speaker_num: settings.speaker_num,
       folder_id: project.heygen_folder_id ?? undefined,
       enable_video_stretching: settings.enable_video_stretching,
@@ -36,11 +37,7 @@ export function createProofreadProcessor(rateLimiter: RateLimiter, queues: Queue
 
     if (result.error) throw new Error(`HeyGen error: ${result.error}`);
 
-    const heygenIds = result.data.proofread_ids
-      ? result.data.proofread_ids
-      : result.data.proofread_id
-        ? [result.data.proofread_id]
-        : [];
+    const heygenIds = result.data.proofread_ids ?? [];
 
     for (let i = 0; i < heygenIds.length; i++) {
       const heygenId = heygenIds[i];
@@ -60,7 +57,7 @@ export function createProofreadProcessor(rateLimiter: RateLimiter, queues: Queue
           status: "processing",
         }).execute();
       } catch (err: any) {
-        if (err.code === "ER_DUP_ENTRY") {
+        if (isDuplicateKeyError(err)) {
           console.log(`⏭️ Proofread already exists: ${idempotencyKey}`);
           continue;
         }

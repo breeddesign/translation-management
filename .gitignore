@@ -4,3 +4,12 @@ storage/
 .env
 *.log
 .DS_Store
+
+# Desktop-App: Build-Artefakte und lokale Daten (SQLite, Session-Key)
+release/
+data/
+desktop/build/
+
+# Vom Build erzeugt (npm run build): Tailwind-CSS und vendorte Frontend-Libs
+public/static/*
+!public/static/.gitkeep

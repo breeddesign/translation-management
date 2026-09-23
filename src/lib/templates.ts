@@ -46,6 +46,7 @@ const partialFiles = [
   ["status-cards", "status-cards.hbs"],
   ["proofreads-table", "proofreads-table.hbs"],
   ["translated-table", "translated-table.hbs"],
+  ["heygen-videos-table", "heygen-videos-table.hbs"],
 ] as const;
 
 for (const [name, file] of partialFiles) {
@@ -78,6 +79,8 @@ Handlebars.registerHelper("statusBadge", (status: string) => {
 });
 
 Handlebars.registerHelper("eq", (a: unknown, b: unknown) => a === b);
+/** 0-basierter @index → 1-basierte Zeilennummer */
+Handlebars.registerHelper("inc", (value: unknown) => Number(value) + 1);
 Handlebars.registerHelper("json", (obj: unknown) =>
   new Handlebars.SafeString(JSON.stringify(obj, null, 2))
 );

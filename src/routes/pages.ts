@@ -80,31 +80,88 @@ async function loadFolderData() {
 
 // ── Folder Browser (Home) ───────────────────────────────────
 
-pages.get("/", async (c) => {
-  try {
-    const { tree, projects } = await loadFolderData();
+// Die Seite rendert sofort; der Ordnerbaum wird per HTMX nachgeladen
+pages.get("/", (c) => c.html(render("folder-browser", { selectedFolderId: null })));
 
-    return c.html(render("folder-browser", {
-      tree,
-      selectedFolder: null,
-      projects,
+// Ordnerbaum (HTMX-Fragment) — der vollständige HeyGen-Baum braucht beim
+// ersten Laden einige Sekunden und darf die Seite nicht blockieren
+pages.get("/partials/folder-tree", async (c) => {
+  try {
+    const { tree } = await loadFolderData();
+    return c.html(renderPartial("partials/folder-tree", { tree }));
+  } catch (err) {
+    console.warn("Ordnerbaum konnte nicht geladen werden:", err);
+    return c.html(renderPartial("partials/folder-tree", { failed: true }));
+  }
+});
+
+// Rückfallebene, falls die HeyGen-Ordner nicht erreichbar sind
+pages.get("/projects", async (c) => {
+  const projects = await db.selectFrom("projects").selectAll().orderBy("created_at", "desc").execute();
+  const enriched = await Promise.all(
+    projects.map(async (p) => {
+      const [{ count }] = await db
+        .selectFrom("videos")
+        .select(db.fn.countAll().as("count"))
+        .where("project_id", "=", p.id)
+        .execute();
+      const settings: ProjectSettings = parseSettings(p.settings);
+      return { ...p, video_count: count, languages: settings.output_languages };
+    })
+  );
+  return c.html(render("projects-list", { projects: enriched }));
+});
+
+// ── HeyGen-Video → View-Model ───────────────────────────────
+
+function mapHeygenVideo(v: heygen.VideoListItem, folderNames?: Map<string, string>) {
+  const dur = v.duration != null ? Number(v.duration) : null;
+  return {
+    ...v,
+    title: v.title ?? "Ohne Titel",
+    duration_fmt: dur
+      ? `${Math.floor(dur / 60)}:${String(Math.round(dur % 60)).padStart(2, "0")}`
+      : null,
+    created_fmt: v.created_at
+      ? new Date(v.created_at * 1000).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })
+      : null,
+    is_translation: !!v.output_language,
+    folder_name: v.folder_id ? folderNames?.get(v.folder_id) ?? "–" : "–",
+  };
+}
+
+// ── Video-Suche (HTMX partial) ──────────────────────────────
+
+pages.get("/search/videos", async (c) => {
+  const q = (c.req.query("q") ?? "").trim();
+
+  if (!q) {
+    // Leere Suche → zurück zur Ordner-Auswahl-Ansicht
+    return c.html(`<div class="flex flex-col items-center justify-center h-full text-gray-400 py-16">
+      <span class="material-symbols-rounded" style="font-size:64px">folder_open</span>
+      <p class="text-lg font-medium">Ordner auswählen</p>
+      <p class="text-sm mt-1">Klicke links auf einen Ordner — oder suche oben nach Videos.</p>
+    </div>`);
+  }
+
+  try {
+    const [page, foldersRes] = await Promise.all([
+      heygen.listVideos({ title: q, limit: 100 }),
+      heygen.listFolders(),
+    ]);
+    const folderNames = new Map(foldersRes.data.folders.map((f) => [f.id, f.name]));
+    const videos = (page.data ?? []).map((v) => mapHeygenVideo(v, folderNames));
+
+    return c.html(renderPartial("partials/video-search-results", {
+      q,
+      videos,
+      hasVideos: videos.length > 0,
+      hasMore: page.has_more,
+      zip_name: `Suche_${q}`,
     }));
   } catch (err) {
-    console.warn("Could not load folders, falling back to project list:", err);
-    // Fallback: show simple project list
-    const projects = await db.selectFrom("projects").selectAll().orderBy("created_at", "desc").execute();
-    const enriched = await Promise.all(
-      projects.map(async (p) => {
-        const [{ count }] = await db
-          .selectFrom("videos")
-          .select(db.fn.countAll().as("count"))
-          .where("project_id", "=", p.id)
-          .execute();
-        const settings: ProjectSettings = parseSettings(p.settings);
-        return { ...p, video_count: count, languages: settings.output_languages };
-      })
-    );
-    return c.html(render("projects-list", { projects: enriched }));
+    console.warn("Video search failed:", err);
+    return c.html(`<p class="text-sm text-red-600 py-8 text-center">Suche fehlgeschlagen — siehe Server-Log.</p>`);
   }
 });
 
@@ -112,7 +169,26 @@ pages.get("/", async (c) => {
 
 pages.get("/folders/:id", async (c) => {
   const folderId = c.req.param("id");
-  const { tree, folders, projects } = await loadFolderData();
+
+  // Dieselbe URL bedient zwei Fälle: HTMX-Fragment beim Klick im Baum und
+  // vollständige Seite bei Direktaufruf, Reload oder Browser-Zurück
+  // (HTMX schickt dabei HX-History-Restore-Request).
+  const isHtmx = !!c.req.header("HX-Request");
+  const isHistoryRestore = !!c.req.header("HX-History-Restore-Request");
+
+  if (!isHtmx || isHistoryRestore) {
+    return c.html(render("folder-browser", { selectedFolderId: folderId }));
+  }
+
+  // Ordnerstruktur, Projekte und HeyGen-Videos parallel laden;
+  // Video-Listing darf den Ordner-View nicht blockieren, wenn es fehlschlägt
+  const [{ folders, projects }, heygenVideosResult] = await Promise.all([
+    loadFolderData(),
+    heygen.listAllFolderVideos(folderId).catch((err) => {
+      console.warn(`Could not list HeyGen videos for folder ${folderId}:`, err);
+      return null;
+    }),
+  ]);
 
   const folder = folders.find((f) => f.id === folderId);
   const childFolders = folders.filter((f) => f.parent_id === folderId);
@@ -130,24 +206,75 @@ pages.get("/folders/:id", async (c) => {
     })
   );
 
+  const heygenVideos = (heygenVideosResult ?? []).map((v) => mapHeygenVideo(v));
+
   return c.html(renderPartial("partials/folder-content", {
     folder: folder ?? { id: folderId, name: "Ordner" },
     childFolders,
     projects: enrichedProjects,
+    heygenVideos,
+    videosUnavailable: heygenVideosResult === null,
     hasChildren: childFolders.length > 0,
     hasProjects: enrichedProjects.length > 0,
+    hasVideos: heygenVideos.length > 0,
   }));
 });
 
 // ── Full page folder view (for direct navigation) ───────────
 
-pages.get("/folders/:id/view", async (c) => {
-  const folderId = c.req.param("id");
-  const { tree } = await loadFolderData();
+pages.get("/folders/:id/view", (c) =>
+  c.html(render("folder-browser", { selectedFolderId: c.req.param("id") }))
+);
 
-  return c.html(render("folder-browser", {
-    tree,
-    selectedFolderId: folderId,
+// ── Jobs Overview ───────────────────────────────────────────
+
+pages.get("/jobs", async (c) => {
+  const queues = (c as any).get("queues");
+
+  const queueEntries = Object.entries(queues) as Array<[string, any]>;
+  const queueStats = await Promise.all(
+    queueEntries.map(async ([name, queue]) => {
+      const counts = await queue.getJobCounts("waiting", "active", "delayed", "completed", "failed");
+      return {
+        name: queue.name ?? name,
+        waiting: counts.waiting ?? 0,
+        active: counts.active ?? 0,
+        delayed: counts.delayed ?? 0,
+        completed: counts.completed ?? 0,
+        failed: counts.failed ?? 0,
+      };
+    })
+  );
+
+  // Fehlgeschlagene Jobs mit Grund (max. 10 pro Queue)
+  const failedJobs = (
+    await Promise.all(
+      queueEntries.map(async ([, queue]) => {
+        const jobs = await queue.getFailed(0, 9);
+        return jobs.map((j: any) => ({
+          queue: queue.name,
+          job_name: j.name,
+          reason: (j.failedReason ?? "").slice(0, 200),
+          attempts: j.attemptsMade,
+          data: JSON.stringify(j.data).slice(0, 120),
+        }));
+      })
+    )
+  ).flat();
+
+  const jobLog = await db
+    .selectFrom("job_log")
+    .selectAll()
+    .orderBy("created_at", "desc")
+    .limit(50)
+    .execute();
+
+  return c.html(render("jobs", {
+    queueStats,
+    failedJobs,
+    hasFailedJobs: failedJobs.length > 0,
+    jobLog,
+    hasJobLog: jobLog.length > 0,
   }));
 });
 

@@ -4,25 +4,21 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>HeyGen Proofreader</title>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0&display=swap">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
-  <script src="https://unpkg.com/htmx-ext-response-targets@2.0.2/response-targets.js"></script>
-  <script src="https://unpkg.com/htmx-ext-json-enc@2.0.1/json-enc.js"></script>
-  <style>
-    .htmx-indicator { display: none; }
-    .htmx-request .htmx-indicator { display: inline-block; }
-    .htmx-request.htmx-indicator { display: inline-block; }
-    .material-symbols-rounded { font-size: 18px; vertical-align: middle; }
-  </style>
+  <!-- Lokal ausgeliefert statt per CDN: die Oberfläche bleibt auch bei
+       CDN-Ausfall oder langsamer Verbindung sofort benutzbar -->
+  <link rel="stylesheet" href="/static/material-symbols-rounded.css">
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/htmx.min.js"></script>
+  <script src="/static/htmx-ext-response-targets.js"></script>
+  <script src="/static/htmx-ext-json-enc.js"></script>
 </head>
 <body class="h-full" hx-ext="response-targets">
   <div class="min-h-full flex flex-col">
     <!-- Nav -->
-    <nav class="bg-white border-b border-gray-200 flex-shrink-0">
-      <div class="px-4 sm:px-6">
+    <nav class="app-titlebar bg-white border-b border-gray-200 flex-shrink-0">
+      <div class="nav-inner px-4 sm:px-6">
         <div class="flex h-14 items-center justify-between">
-          <a href="/" class="flex items-center gap-2 text-lg font-semibold text-gray-900">
+          <a href="/" draggable="false" class="flex items-center gap-2 text-lg font-semibold text-gray-900">
             HeyGen Proofreader
           </a>
           <div class="flex items-center gap-4">
@@ -38,5 +34,37 @@
       {{{body}}}
     </main>
   </div>
+
+  <script>
+  // ── Multiauswahl für HeyGen-Video-Downloads ─────────────────
+  function hgToggleAll(source) {
+    const scope = source.closest("[data-video-scope]");
+    scope.querySelectorAll(".hg-check:not(:disabled)").forEach((cb) => { cb.checked = source.checked; });
+    hgUpdateCount(source);
+  }
+
+  function hgUpdateCount(el) {
+    const scope = el.closest("[data-video-scope]");
+    const count = scope.querySelectorAll(".hg-check:checked").length;
+    const label = scope.querySelector(".hg-selected-count");
+    if (label) label.textContent = count;
+  }
+
+  function hgBatchDownload(btn, type) {
+    const scope = btn.closest("[data-video-scope]");
+    const checked = [...scope.querySelectorAll(".hg-check:checked")];
+    const ids = checked.map((cb) => cb.value);
+    if (!ids.length) { alert("Bitte zuerst Videos auswählen."); return; }
+    const max = type === "video" ? 20 : 100;
+    if (ids.length > max) { alert(`Maximal ${max} ${type === "video" ? "Videos" : "Captions"} pro ZIP.`); return; }
+
+    // ZIP-Name: gemeinsamer Ordner der Auswahl, sonst Name des Scopes (Ordner/Suche)
+    const folders = [...new Set(checked.map((cb) => cb.dataset.folder).filter((f) => f && f !== "–"))];
+    const zipName = folders.length === 1 ? folders[0] : (scope.dataset.zipName || "heygen");
+
+    const qs = ids.map((id) => "ids=" + encodeURIComponent(id)).join("&");
+    window.location = "/api/heygen-videos/download?type=" + type + "&name=" + encodeURIComponent(zipName) + "&" + qs;
+  }
+  </script>
 </body>
 </html>

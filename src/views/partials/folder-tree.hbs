@@ -1,0 +1,12 @@
+{{#if failed}}
+<li class="px-2 py-2 text-xs text-amber-600">
+  Ordner konnten nicht geladen werden.
+  <button hx-get="/partials/folder-tree" hx-target="#folder-tree" hx-swap="innerHTML"
+    class="block mt-1 text-blue-600 hover:underline">Erneut versuchen</button>
+  <a href="/projects" class="block mt-1 text-blue-600 hover:underline">Projekte ohne Ordner anzeigen</a>
+</li>
+{{else}}
+{{#each tree}}
+{{> folderTreeItem this}}
+{{/each}}
+{{/if}}

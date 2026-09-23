@@ -1,5 +1,8 @@
 import { Hono } from "hono";
 import { nanoid } from "nanoid";
+import archiver from "archiver";
+import { Readable } from "stream";
+import { srtToVtt } from "../lib/subtitles.js";
 import { db, type ProjectSettings, parseSettings } from "../db/index.js";
 import * as heygen from "../services/heygen.js";
 import { excelToSrt } from "../services/srt-excel.js";
@@ -9,6 +12,7 @@ import {
   createQueues,
   enqueueProjectProofreads,
   enqueueVideoGenerations,
+  enqueueAssetDownloads,
   type Queues,
 } from "../queue/index.js";
 
@@ -275,7 +279,7 @@ api.post("/proofreads/batch-sync", async (c) => {
 
     if (!proofread?.heygen_proofread_id) continue;
 
-    const result = await heygen.getProofreadStatus(proofread.heygen_proofread_id);
+    const result = await heygen.getProofreadSession(proofread.heygen_proofread_id);
     if (result.error) { results.push({ id: proofreadId, status: "error" }); continue; }
 
     const heygenStatus = result.data.status;
@@ -302,7 +306,7 @@ api.post("/proofreads/batch-sync", async (c) => {
       results.push({ id: proofreadId, status: "completed" });
     } else if (heygenStatus === "failed") {
       await db.updateTable("proofreads").set({
-        status: "failed", error_message: result.data.details ?? "Failed in HeyGen",
+        status: "failed", error_message: result.data.failure_message ?? "Failed in HeyGen",
       }).where("id", "=", proofreadId).execute();
       results.push({ id: proofreadId, status: "failed" });
     } else {
@@ -414,13 +418,17 @@ api.post("/proofreads/:id/excel", async (c) => {
   const srtKey = `proofreads/${proofread.video_id}/${proofread.language}/v${newRevision}_edited.srt`;
 
   await storage.upload(excelKey, buffer, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-  const srtUrl = await storage.upload(srtKey, srtContent, "text/plain");
+  await storage.upload(srtKey, srtContent, "text/plain");
 
-  // Get public URL for HeyGen (must be internet-reachable)
-  const publicSrtUrl = await storage.getPublicUrl(srtKey);
-
-  // Upload to HeyGen
-  await heygen.uploadProofreadSrt(proofread.heygen_proofread_id!, publicSrtUrl);
+  // Über ein HeyGen-Asset statt über eine URL zurückspielen: HeyGen müsste den
+  // Storage sonst selbst abrufen können, was bei lokalem Storage (Desktop-App)
+  // und hinter einer Firewall nicht möglich ist.
+  const asset = await heygen.uploadAsset(
+    `proofread-${proofreadId}-v${newRevision}.srt`,
+    srtContent,
+    "application/x-subrip"
+  );
+  await heygen.uploadProofreadSrt(proofread.heygen_proofread_id!, asset.data.asset_id);
 
   // Create revision record (audit trail)
   // Compute simple diff summary
@@ -513,15 +521,203 @@ api.get("/projects/:id/downloads", async (c) => {
     .where("status", "=", "completed")
     .execute();
 
-  return c.json({
-    count: videos.length,
-    videos: videos.map((v) => ({
+  const storage = getStorage();
+  const items = await Promise.all(
+    videos.map(async (v) => ({
       id: v.id,
       proofread_id: v.proofread_id,
-      video_url: v.video_url,
       status: v.status,
-    })),
-  });
+      // Lokale Kopien (Storage) — bevorzugt, laufen nicht ab wie HeyGen-URLs
+      video: v.storage_key ? await storage.getSignedDownloadUrl(v.storage_key) : null,
+      vtt: v.vtt_storage_key ? await storage.getSignedDownloadUrl(v.vtt_storage_key) : null,
+      srt: v.srt_storage_key ? await storage.getSignedDownloadUrl(v.srt_storage_key) : null,
+      // Fallback: HeyGen-URL (presigned, läuft ab)
+      heygen_video_url: v.video_url,
+    }))
+  );
+
+  return c.json({ count: items.length, videos: items });
+});
+
+// ── HeyGen-Videos: Direkt-Downloads (Captions immer als VTT) ─
+
+function sanitizeFilename(name: string): string {
+  return name.replace(/[^\p{L}\p{N}._ -]+/gu, "_").replace(/\s+/g, " ").trim().slice(0, 120) || "video";
+}
+
+// Content-Disposition mit ASCII-Fallback + RFC-5987-Encoding (Umlaute etc.)
+function contentDispositionAttachment(filename: string): string {
+  const ascii = filename.replace(/[^\x20-\x7E]/g, "_").replace(/["\\]/g, "_");
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
+}
+
+function videoBasename(v: { title: string | null; output_language: string | null; id: string }): string {
+  const title = v.title ?? v.id;
+  return sanitizeFilename(v.output_language ? `${title}_${v.output_language}` : title);
+}
+
+async function fetchVttForVideo(subtitleUrl: string): Promise<string> {
+  const res = await fetch(subtitleUrl);
+  if (!res.ok) throw new Error(`Caption download failed: ${res.status}`);
+  const text = await res.text();
+  const isVtt = subtitleUrl.split("?")[0].toLowerCase().endsWith(".vtt") || text.trimStart().startsWith("WEBVTT");
+  return isVtt ? text : srtToVtt(text);
+}
+
+// Einzelne Caption als VTT (konvertiert bei Bedarf aus SRT)
+api.get("/heygen-videos/:id/vtt", async (c) => {
+  const video = await heygen.getVideo(c.req.param("id"));
+  if (!video?.subtitle_url) {
+    return c.json({ error: "Keine Captions für dieses Video verfügbar" }, 404);
+  }
+
+  const vtt = await fetchVttForVideo(video.subtitle_url);
+  c.header("Content-Type", "text/vtt; charset=utf-8");
+  c.header("Content-Disposition", contentDispositionAttachment(`${videoBasename(video)}.vtt`));
+  return c.body(vtt);
+});
+
+// Batch-Download als ZIP: ?type=video|vtt&ids=...&ids=...
+api.get("/heygen-videos/download", async (c) => {
+  const ids = c.req.queries("ids") ?? [];
+  const type = c.req.query("type") === "video" ? "video" : "vtt";
+
+  if (!ids.length) return c.json({ error: "Keine Video-IDs angegeben" }, 400);
+  const maxItems = type === "video" ? 20 : 100;
+  if (ids.length > maxItems) {
+    return c.json({ error: `Maximal ${maxItems} ${type === "video" ? "Videos" : "Captions"} pro ZIP` }, 400);
+  }
+
+  const archive = archiver("zip", { zlib: { level: type === "video" ? 0 : 6 } });
+  const usedNames = new Set<string>();
+  const uniqueName = (base: string, ext: string) => {
+    let name = `${base}${ext}`;
+    let i = 2;
+    while (usedNames.has(name)) name = `${base}_${i++}${ext}`;
+    usedNames.add(name);
+    return name;
+  };
+
+  // Einträge sequenziell nachladen, während das ZIP bereits zum Client streamt
+  (async () => {
+    const skipped: string[] = [];
+    for (const id of ids) {
+      try {
+        const video = await heygen.getVideo(id);
+        const base = videoBasename(video);
+
+        if (type === "video") {
+          if (!video.video_url) { skipped.push(`${base}: keine Video-URL (Status: ${video.status})`); continue; }
+          const res = await fetch(video.video_url);
+          if (!res.ok) { skipped.push(`${base}: HTTP ${res.status}`); continue; }
+          archive.append(Buffer.from(await res.arrayBuffer()), { name: uniqueName(base, ".mp4") });
+        } else {
+          if (!video.subtitle_url) { skipped.push(`${base}: keine Captions verfügbar`); continue; }
+          archive.append(await fetchVttForVideo(video.subtitle_url), { name: uniqueName(base, ".vtt") });
+        }
+      } catch (err: any) {
+        skipped.push(`${id}: ${err?.message ?? err}`);
+      }
+    }
+    if (skipped.length) {
+      archive.append(`Übersprungene Dateien:\n\n${skipped.join("\n")}\n`, { name: "_uebersprungen.txt" });
+    }
+    await archive.finalize();
+  })().catch((err) => archive.destroy(err instanceof Error ? err : new Error(String(err))));
+
+  // ZIP nach übergeordnetem Ordner benennen (kommt als ?name= aus der UI)
+  const zipBase = sanitizeFilename(c.req.query("name") ?? "heygen").replace(/\s+/g, "_");
+  const zipName = `${zipBase}_${type === "video" ? "videos" : "captions"}.zip`;
+
+  c.header("Content-Type", "application/zip");
+  c.header("Content-Disposition", contentDispositionAttachment(zipName));
+  return c.body(Readable.toWeb(archive) as any);
+});
+
+// ── Translated Assets: Download aus dem Storage ─────────────
+
+const ASSET_KEY_FIELDS = {
+  video: "storage_key",
+  vtt: "vtt_storage_key",
+  srt: "srt_storage_key",
+} as const;
+
+api.get("/translated/:id/asset/:kind", async (c) => {
+  const kind = c.req.param("kind") as keyof typeof ASSET_KEY_FIELDS;
+  const field = ASSET_KEY_FIELDS[kind];
+  if (!field) return c.json({ error: `Unknown asset kind: ${kind}` }, 400);
+
+  const row = await db
+    .selectFrom("translated_videos")
+    .select(["storage_key", "vtt_storage_key", "srt_storage_key"])
+    .where("id", "=", c.req.param("id"))
+    .executeTakeFirst();
+
+  if (!row) return c.json({ error: "Not found" }, 404);
+
+  const key = row[field];
+  if (!key) return c.json({ error: `${kind} not yet in storage` }, 404);
+
+  const storage = getStorage();
+  return c.redirect(await storage.getSignedDownloadUrl(key));
+});
+
+// ── Translated Assets: manuell von HeyGen ziehen ────────────
+
+api.post("/translated/:id/pull", async (c) => {
+  const translatedVideoId = c.req.param("id");
+  const queues = getQueues(c);
+
+  const row = await db
+    .selectFrom("translated_videos")
+    .select(["id", "status", "heygen_video_translate_id"])
+    .where("id", "=", translatedVideoId)
+    .executeTakeFirst();
+
+  if (!row) return c.json({ error: "Not found" }, 404);
+  if (row.status !== "completed" || !row.heygen_video_translate_id) {
+    return c.json({ error: "Translation not completed yet" }, 400);
+  }
+
+  // Ohne festen jobId, damit ein erneuter Pull auch nach einem
+  // bereits abgeschlossenen Job wieder ausgeführt wird
+  await queues.downloadAssets.add(
+    `download-assets-${translatedVideoId}`,
+    { translatedVideoId },
+    { attempts: 5, backoff: { type: "exponential", delay: 15_000 }, removeOnComplete: 100 }
+  );
+
+  if (c.req.header("HX-Request")) {
+    c.header("HX-Trigger", "pollStatus");
+    return c.body(null, 204);
+  }
+  return c.json({ message: "Asset download enqueued" });
+});
+
+// Alle fertigen Übersetzungen eines Projekts in den Storage ziehen
+api.post("/projects/:id/pull-assets", async (c) => {
+  const projectId = c.req.param("id");
+  const queues = getQueues(c);
+
+  const rows = await db
+    .selectFrom("translated_videos")
+    .select(["id", "storage_key", "vtt_storage_key", "srt_storage_key"])
+    .where("project_id", "=", projectId)
+    .where("status", "=", "completed")
+    .where("heygen_video_translate_id", "is not", null)
+    .execute();
+
+  const missing = rows
+    .filter((r) => !r.storage_key || !r.vtt_storage_key || !r.srt_storage_key)
+    .map((r) => r.id);
+
+  const count = await enqueueAssetDownloads(queues, missing);
+
+  if (c.req.header("HX-Request")) {
+    c.header("HX-Trigger", "pollStatus");
+    return c.body(null, 204);
+  }
+  return c.json({ message: `Enqueued ${count} asset downloads`, count, total_completed: rows.length });
 });
 
 // ── Status Overview (used by HTMX polling) ──────────────────
@@ -561,7 +757,7 @@ api.post("/proofreads/:id/sync", async (c) => {
     return c.json({ error: "No HeyGen proofread ID" }, 400);
   }
 
-  const result = await heygen.getProofreadStatus(proofread.heygen_proofread_id);
+  const result = await heygen.getProofreadSession(proofread.heygen_proofread_id);
   if (result.error) {
     return c.json({ error: result.error }, 500);
   }
@@ -596,7 +792,7 @@ api.post("/proofreads/:id/sync", async (c) => {
   } else if (heygenStatus === "failed") {
     await db.updateTable("proofreads").set({
       status: "failed",
-      error_message: result.data.details ?? "Failed in HeyGen",
+      error_message: result.data.failure_message ?? "Failed in HeyGen",
     }).where("id", "=", proofreadId).execute();
   }
 

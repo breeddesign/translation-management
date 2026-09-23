@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── HTMX-Ladeanzeige ─────────────────────────────────────── */
+.htmx-indicator { display: none; }
+.htmx-request .htmx-indicator { display: inline-block; }
+.htmx-request.htmx-indicator { display: inline-block; }
+
+/* ── Icon-Schrift ─────────────────────────────────────────── */
+.material-symbols-rounded { font-size: 18px; vertical-align: middle; }
+
+/* ── Nur in der Desktop-App (data-desktop setzt das Preload) ──
+   titleBarStyle "hiddenInset" blendet die Titelleiste aus; die Ampel-Buttons
+   liegen dann über dem Seiteninhalt. Die Kopfzeile bekommt links Platz und
+   dient zugleich als Ziehfläche für das Fenster.
+
+   Wichtig: ausschließlich .app-titlebar ansprechen, niemals `nav` allgemein —
+   der Ordnerbaum steckt ebenfalls in einem <nav>, und eine Ziehfläche
+   verschluckt sämtliche Klicks darin. Kindelemente erben `app-region` nicht,
+   aber ihr `none` stanzt auch kein Loch in die Fläche des Elternelements;
+   nur explizites `no-drag` tut das. */
+html[data-desktop] .app-titlebar .nav-inner { padding-left: 88px; }
+html[data-desktop] .app-titlebar { -webkit-app-region: drag; }
+html[data-desktop] .app-titlebar a,
+html[data-desktop] .app-titlebar button,
+html[data-desktop] .app-titlebar input,
+html[data-desktop] .app-titlebar select { -webkit-app-region: no-drag; }
+
+/* Im Vollbild sind die Fensterkontrollen ausgeblendet */
+html[data-desktop][data-fullscreen] .app-titlebar .nav-inner { padding-left: 0; }

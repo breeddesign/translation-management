@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+  <title>Einrichtung</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+      margin: 0; padding: 32px; background: #f9fafb; color: #111827;
+    }
+    @media (prefers-color-scheme: dark) {
+      body { background: #1f2937; color: #f3f4f6; }
+      input { background: #111827; color: #f3f4f6; border-color: #374151 !important; }
+      .hint { color: #9ca3af !important; }
+    }
+    h1 { font-size: 18px; margin: 0 0 6px; }
+    p { font-size: 13px; line-height: 1.5; margin: 0 0 20px; }
+    .hint { color: #6b7280; font-size: 12px; margin-top: 8px; }
+    label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+    input {
+      width: 100%; box-sizing: border-box; padding: 9px 11px; font-size: 13px;
+      border: 1px solid #d1d5db; border-radius: 8px; font-family: ui-monospace, monospace;
+    }
+    input:focus { outline: 2px solid #2563eb; outline-offset: -1px; border-color: #2563eb; }
+    .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
+    button {
+      padding: 8px 16px; font-size: 13px; font-weight: 500; border-radius: 8px;
+      border: 1px solid #d1d5db; background: #fff; cursor: pointer;
+    }
+    button.primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <h1>HeyGen API-Key</h1>
+  <p>
+    Die App arbeitet direkt mit deinem HeyGen-Account. Der Key wird lokal im
+    Datenordner der App gespeichert und nirgendwo sonst hingesendet.
+  </p>
+
+  <label for="key">API-Key</label>
+  <input id="key" type="password" placeholder="z. B. NGY3ZTk…" autocomplete="off" spellcheck="false">
+  <p class="hint">Zu finden in HeyGen unter Settings → Subscriptions → API Token.</p>
+
+  <div class="actions">
+    <button id="save" class="primary" disabled>Speichern &amp; starten</button>
+  </div>
+
+  <script>
+    const input = document.getElementById("key");
+    const save = document.getElementById("save");
+
+    const sync = () => { save.disabled = input.value.trim().length < 8; };
+    input.addEventListener("input", sync);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !save.disabled) save.click();
+    });
+    save.addEventListener("click", () => window.setup.save(input.value.trim()));
+
+    input.focus();
+    sync();
+  </script>
+</body>
+</html>

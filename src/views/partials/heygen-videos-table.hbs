@@ -1,0 +1,76 @@
+<div data-video-scope data-zip-name="{{zipName}}">
+  <!-- Auswahl-Toolbar -->
+  <div class="flex items-center justify-between mb-2">
+    <p class="text-xs text-gray-400"><span class="hg-selected-count">0</span> ausgewählt</p>
+    <div class="flex items-center gap-2">
+      <button onclick="hgBatchDownload(this, 'video')"
+        class="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
+        <span class="material-symbols-rounded" style="font-size:14px">movie</span> Videos (ZIP)
+      </button>
+      <button onclick="hgBatchDownload(this, 'vtt')"
+        class="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700">
+        <span class="material-symbols-rounded" style="font-size:14px">subtitles</span> Captions VTT (ZIP)
+      </button>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+    <table class="min-w-full divide-y divide-gray-200">
+      <thead class="bg-gray-50">
+        <tr>
+          <th class="px-3 py-2 w-8">
+            <input type="checkbox" onclick="hgToggleAll(this)" class="rounded border-gray-300">
+          </th>
+          <th class="px-2 py-2 w-10 text-right text-xs font-medium text-gray-500 uppercase">#</th>
+          <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Titel</th>
+          {{#if showFolder}}
+          <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Ordner</th>
+          {{/if}}
+          <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Typ</th>
+          <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+          <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Dauer</th>
+          <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Erstellt</th>
+          <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Links</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-200">
+        {{#each videos}}
+        <tr class="hover:bg-gray-50">
+          <td class="px-3 py-2">
+            <input type="checkbox" value="{{this.id}}" data-folder="{{this.folder_name}}" onchange="hgUpdateCount(this)"
+              class="hg-check rounded border-gray-300" {{#unless (eq this.status "completed")}}disabled title="Noch nicht fertig"{{/unless}}>
+          </td>
+          <td class="px-2 py-2 text-right text-xs text-gray-400 tabular-nums">{{inc @index}}</td>
+          <td class="px-4 py-2 text-sm font-medium text-gray-900">{{this.title}}</td>
+          {{#if ../showFolder}}
+          <td class="px-4 py-2 text-xs text-gray-500">{{this.folder_name}}</td>
+          {{/if}}
+          <td class="px-4 py-2 text-xs text-gray-600">
+            {{#if this.is_translation}}
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">{{this.output_language}}</span>
+            {{else}}
+            <span class="text-gray-400">Original</span>
+            {{/if}}
+          </td>
+          <td class="px-4 py-2">{{{statusBadge this.status}}}</td>
+          <td class="px-4 py-2 text-sm text-gray-600">{{#if this.duration_fmt}}{{this.duration_fmt}}{{else}}–{{/if}}</td>
+          <td class="px-4 py-2 text-sm text-gray-600">{{this.created_fmt}}</td>
+          <td class="px-4 py-2">
+            <div class="flex items-center gap-3">
+              {{#if this.video_url}}
+              <a href="{{this.video_url}}" target="_blank" class="text-xs text-blue-600 hover:underline">Video</a>
+              {{/if}}
+              {{#if this.subtitle_url}}
+              <a href="/api/heygen-videos/{{this.id}}/vtt" class="text-xs text-blue-600 hover:underline">VTT</a>
+              {{/if}}
+              {{#if this.video_page_url}}
+              <a href="{{this.video_page_url}}" target="_blank" class="text-xs text-gray-500 hover:underline">HeyGen ↗</a>
+              {{/if}}
+            </div>
+          </td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  </div>
+</div>

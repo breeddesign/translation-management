@@ -23,29 +23,84 @@
         </div>
       </form>
 
-      <!-- Folder tree -->
+      <!-- Folder search -->
+      <div class="relative mb-3">
+        <span class="material-symbols-rounded absolute left-2 top-1.5 text-gray-400" style="font-size:16px">search</span>
+        <input type="search" id="folder-search" placeholder="Ordner suchen…" autocomplete="off"
+          oninput="filterFolderTree(this.value)"
+          class="w-full rounded-lg border border-gray-300 pl-7 pr-2 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+      </div>
+
+      <!-- Folder tree — wird nachgeladen, damit die Seite sofort erscheint
+           (der vollständige HeyGen-Baum braucht beim ersten Mal einige Sekunden) -->
       <nav>
-        <ul class="space-y-0.5">
-          {{#each tree}}
-          {{> folderTreeItem this}}
-          {{/each}}
+        <ul id="folder-tree" class="space-y-0.5"
+          hx-get="/partials/folder-tree" hx-trigger="load" hx-swap="innerHTML">
+          <li class="flex items-center gap-2 px-2 py-1.5 text-sm text-gray-400">
+            <span class="material-symbols-rounded animate-spin" style="font-size:16px">progress_activity</span>
+            Ordner werden geladen…
+          </li>
         </ul>
       </nav>
     </div>
   </aside>
 
-  <!-- Content: Selected folder -->
-  <main id="folder-content" class="flex-1 overflow-y-auto p-6">
-    {{#if selectedFolderId}}
-    <div hx-get="/folders/{{selectedFolderId}}" hx-trigger="load" hx-swap="innerHTML"></div>
-    {{else}}
-    <div class="flex flex-col items-center justify-center h-full text-gray-400">
-      <span class="material-symbols-rounded" style="font-size:64px">folder_open</span>
-      <p class="text-lg font-medium">Ordner auswählen</p>
-      <p class="text-sm mt-1">Klicke links auf einen Ordner, um den Inhalt anzuzeigen.</p>
+  <!-- Content column: video search + selected folder -->
+  <div class="flex-1 flex flex-col overflow-hidden">
+    <!-- Video search (global, all folders) -->
+    <div class="border-b border-gray-200 bg-white px-6 py-3 flex-shrink-0">
+      <div class="relative max-w-md">
+        <span class="material-symbols-rounded absolute left-2.5 top-2 text-gray-400" style="font-size:18px">search</span>
+        <input type="search" name="q" placeholder="Videos suchen (alle Ordner)…" autocomplete="off"
+          hx-get="/search/videos" hx-trigger="input changed delay:400ms, search" hx-target="#folder-content" hx-swap="innerHTML"
+          class="w-full rounded-lg border border-gray-300 pl-8 pr-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+      </div>
     </div>
-    {{/if}}
-  </main>
+
+    <main id="folder-content" class="flex-1 overflow-y-auto p-6">
+      {{#if selectedFolderId}}
+      <div hx-get="/folders/{{selectedFolderId}}" hx-trigger="load" hx-swap="innerHTML"></div>
+      {{else}}
+      <div class="flex flex-col items-center justify-center h-full text-gray-400">
+        <span class="material-symbols-rounded" style="font-size:64px">folder_open</span>
+        <p class="text-lg font-medium">Ordner auswählen</p>
+        <p class="text-sm mt-1">Klicke links auf einen Ordner — oder suche oben nach Videos.</p>
+      </div>
+      {{/if}}
+    </main>
+  </div>
 </div>
 
 <div id="modal"></div>
+
+<script>
+// ── Ordnerbaum filtern (Treffer + Vorfahren zeigen, Pfade aufklappen) ──
+function filterFolderTree(query) {
+  const q = query.trim().toLowerCase();
+  const tree = document.getElementById("folder-tree");
+  const items = tree.querySelectorAll("li[data-tree-item]");
+
+  if (!q) {
+    items.forEach((li) => { li.style.display = ""; });
+    tree.querySelectorAll("ul").forEach((ul) => ul.classList.add("hidden"));
+    tree.querySelectorAll(".tree-chevron").forEach((ch) => ch.classList.remove("rotate-90"));
+    return;
+  }
+
+  items.forEach((li) => { li.style.display = "none"; });
+  items.forEach((li) => {
+    if ((li.dataset.name || "").toLowerCase().includes(q)) {
+      let el = li;
+      while (el && el !== tree) {
+        if (el.tagName === "LI") el.style.display = "";
+        if (el.tagName === "UL") {
+          el.classList.remove("hidden");
+          const chevron = el.closest("li")?.querySelector(".tree-chevron");
+          if (chevron) chevron.classList.add("rotate-90");
+        }
+        el = el.parentElement;
+      }
+    }
+  });
+}
+</script>

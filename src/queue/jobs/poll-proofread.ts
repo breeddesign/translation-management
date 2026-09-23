@@ -1,10 +1,10 @@
-import type { Job } from "bullmq";
+import type { JobLike as Job } from "../types.js";
 import { db } from "../../db/index.js";
 import * as heygen from "../../services/heygen.js";
 import { srtToExcel } from "../../services/srt-excel.js";
 import { getStorage } from "../../services/storage.js";
 import { transitionProofread } from "../../lib/state-machine.js";
-import { RateLimiter } from "../../lib/rate-limiter.js";
+import type { RateLimiter } from "../../lib/rate-limiter.js";
 
 interface PollProofreadData {
   proofreadId: string;
@@ -16,7 +16,7 @@ export function createPollProofreadProcessor(rateLimiter: RateLimiter) {
     const { proofreadId, heygenProofreadId } = job.data;
 
     await rateLimiter.acquire();
-    const result = await heygen.getProofreadStatus(heygenProofreadId);
+    const result = await heygen.getProofreadSession(heygenProofreadId);
 
     if (result.error) throw new Error(`HeyGen poll error: ${result.error}`);
 
@@ -61,7 +61,7 @@ export function createPollProofreadProcessor(rateLimiter: RateLimiter) {
     } else {
       // Failed
       await transitionProofread(proofreadId, "processing", "failed", {
-        error_message: result.data.details ?? "Unknown error",
+        error_message: result.data.failure_message ?? "Unknown error",
       });
     }
   };

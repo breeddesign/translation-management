@@ -87,6 +87,8 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn("status", "varchar(50)", (col) => col.notNull().defaultTo("pending"))
     .addColumn("video_url", "text")
     .addColumn("storage_key", "varchar(500)")
+    .addColumn("vtt_storage_key", "varchar(500)")
+    .addColumn("srt_storage_key", "varchar(500)")
     .addColumn("error_message", "text")
     .addColumn("retry_count", "integer", (col) => col.notNull().defaultTo(0))
     .addColumn("created_at", "timestamp", (col) => col.notNull().defaultTo(sql`CURRENT_TIMESTAMP`))

@@ -2,7 +2,15 @@ import { createPool } from "mysql2/promise";
 import { config } from "../config.js";
 
 async function migrate() {
-  console.log("Starting migration...");
+  console.log(`Starting migration (${config.db.driver})...`);
+
+  // SQLite legt sein Schema beim Öffnen der Datenbank selbst an,
+  // damit die Desktop-App ohne separaten Migrationsschritt startet.
+  if (config.db.driver === "sqlite") {
+    await import("./index.js");
+    console.log(`All migrations complete → ${config.db.sqlitePath}`);
+    process.exit(0);
+  }
 
   const pool = createPool({
     host: config.db.host,
@@ -84,6 +92,8 @@ async function migrate() {
       status VARCHAR(50) NOT NULL DEFAULT 'pending',
       video_url TEXT,
       storage_key VARCHAR(500),
+      vtt_storage_key VARCHAR(500),
+      srt_storage_key VARCHAR(500),
       error_message TEXT,
       retry_count INT NOT NULL DEFAULT 0,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -104,8 +114,21 @@ async function migrate() {
     );
   `;
 
+  // Idempotente ALTERs für bestehende Installationen (v3-Asset-Spalten)
+  const alters = [
+    "ALTER TABLE translated_videos ADD COLUMN vtt_storage_key VARCHAR(500) NULL AFTER storage_key",
+    "ALTER TABLE translated_videos ADD COLUMN srt_storage_key VARCHAR(500) NULL AFTER vtt_storage_key",
+  ];
+
   try {
     await pool.query(sql);
+    for (const stmt of alters) {
+      try {
+        await pool.query(stmt);
+      } catch (err: any) {
+        if (err.code !== "ER_DUP_FIELDNAME") throw err;
+      }
+    }
     console.log("All migrations complete");
   } catch (err) {
     console.error("Migration failed:", err);

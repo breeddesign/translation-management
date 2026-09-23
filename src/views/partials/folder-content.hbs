@@ -6,7 +6,8 @@
       <p class="text-sm text-gray-500 mt-0.5">
         {{#if hasChildren}}{{childFolders.length}} Unterordner{{/if}}
         {{#if hasProjects}}{{#if hasChildren}} &middot; {{/if}}{{projects.length}} Projekte{{/if}}
-        {{#unless hasChildren}}{{#unless hasProjects}}Leer{{/unless}}{{/unless}}
+        {{#if hasVideos}}{{#if hasChildren}} &middot; {{else}}{{#if hasProjects}} &middot; {{/if}}{{/if}}{{heygenVideos.length}} Videos{{/if}}
+        {{#unless hasChildren}}{{#unless hasProjects}}{{#unless hasVideos}}Leer{{/unless}}{{/unless}}{{/unless}}
       </p>
     </div>
     <div class="flex items-center gap-2">
@@ -44,7 +45,7 @@
     <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
       {{#each childFolders}}
       <div class="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 cursor-pointer transition-colors"
-        hx-get="/folders/{{this.id}}" hx-target="#folder-content" hx-swap="innerHTML">
+        hx-get="/folders/{{this.id}}" hx-target="#folder-content" hx-swap="innerHTML" hx-push-url="true">
         <span class="material-symbols-rounded text-yellow-500 flex-shrink-0" style="font-size:32px">folder</span>
         <span class="text-sm font-medium text-gray-800 truncate">{{this.name}}</span>
       </div>
@@ -77,13 +78,27 @@
   </div>
   {{/if}}
 
+  <!-- HeyGen videos in this folder -->
+  {{#if hasVideos}}
+  <div class="mt-6">
+    <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Videos (HeyGen)</h3>
+    {{> heygen-videos-table videos=heygenVideos showFolder=false zipName=folder.name}}
+  </div>
+  {{/if}}
+
+  {{#if videosUnavailable}}
+  <p class="mt-4 text-xs text-amber-600">⚠️ HeyGen-Videos konnten nicht geladen werden (API-Fehler) — siehe Server-Log.</p>
+  {{/if}}
+
   {{#unless hasChildren}}
   {{#unless hasProjects}}
+  {{#unless hasVideos}}
   <div class="flex flex-col items-center justify-center py-16 text-gray-400">
     <span class="material-symbols-rounded" style="font-size:48px">folder_open</span>
     <p class="text-sm">Dieser Ordner ist leer</p>
     <p class="text-xs mt-1">Erstelle ein neues Projekt oder einen Unterordner.</p>
   </div>
+  {{/unless}}
   {{/unless}}
   {{/unless}}
 </div>

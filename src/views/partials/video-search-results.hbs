@@ -1,0 +1,17 @@
+<div>
+  <div class="mb-4">
+    <h1 class="text-xl font-bold text-gray-900">Suche: „{{q}}"</h1>
+    <p class="text-sm text-gray-500 mt-0.5">
+      {{videos.length}} Videos gefunden{{#if hasMore}} (weitere vorhanden — Suchbegriff verfeinern){{/if}}
+    </p>
+  </div>
+
+  {{#if hasVideos}}
+  {{> heygen-videos-table videos=videos showFolder=true zipName=zip_name}}
+  {{else}}
+  <div class="flex flex-col items-center justify-center py-16 text-gray-400">
+    <span class="material-symbols-rounded" style="font-size:48px">search_off</span>
+    <p class="text-sm">Keine Videos gefunden</p>
+  </div>
+  {{/if}}
+</div>

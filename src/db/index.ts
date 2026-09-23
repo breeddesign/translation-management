@@ -1,5 +1,6 @@
-import { Kysely, MysqlDialect, type Generated } from "kysely";
-import { createPool } from "mysql2";
+import { Kysely, MysqlDialect, SqliteDialect, type Generated } from "kysely";
+import { mkdirSync } from "fs";
+import { dirname } from "path";
 import { config } from "../config.js";
 
 export interface ProjectSettings {
@@ -81,6 +82,8 @@ export interface TranslatedVideoTable {
   status: Generated<"pending" | "processing" | "completed" | "failed">;
   video_url: Generated<string | null>;
   storage_key: Generated<string | null>;
+  vtt_storage_key: Generated<string | null>;
+  srt_storage_key: Generated<string | null>;
   error_message: Generated<string | null>;
   retry_count: Generated<number>;
   created_at: Generated<Date>;
@@ -97,6 +100,24 @@ export interface JobLogTable {
   created_at: Generated<Date>;
 }
 
+/** Job-Queue des Desktop-Modus (nur SQLite; im Server-Modus übernimmt BullMQ). */
+export interface LocalJobTable {
+  id: Generated<number>;
+  queue: string;
+  name: string;
+  job_key: string | null;
+  data: string;
+  status: Generated<"waiting" | "active" | "completed" | "failed">;
+  run_at: string;
+  attempts_made: Generated<number>;
+  max_attempts: Generated<number>;
+  backoff_type: Generated<string | null>;
+  backoff_delay: Generated<number>;
+  failed_reason: Generated<string | null>;
+  created_at: Generated<string>;
+  updated_at: Generated<string>;
+}
+
 export interface Database {
   projects: ProjectTable;
   videos: VideoTable;
@@ -104,18 +125,48 @@ export interface Database {
   proofread_revisions: ProofreadRevisionTable;
   translated_videos: TranslatedVideoTable;
   job_log: JobLogTable;
+  local_jobs: LocalJobTable;
 }
 
-const pool = createPool({
-  host: config.db.host,
-  port: config.db.port,
-  user: config.db.user,
-  password: config.db.password,
-  database: config.db.name,
-  connectionLimit: 10,
-  timezone: "+00:00",
-});
+/**
+ * Erkennt Unique-Constraint-Verletzungen treiberübergreifend.
+ * MySQL meldet ER_DUP_ENTRY, SQLite SQLITE_CONSTRAINT_UNIQUE/_PRIMARYKEY.
+ */
+export function isDuplicateKeyError(err: unknown): boolean {
+  const code = (err as { code?: string } | null)?.code;
+  return (
+    code === "ER_DUP_ENTRY" ||
+    code === "SQLITE_CONSTRAINT_UNIQUE" ||
+    code === "SQLITE_CONSTRAINT_PRIMARYKEY"
+  );
+}
 
-export const db = new Kysely<Database>({
-  dialect: new MysqlDialect({ pool: pool as any }),
-});
+// ── Dialekt nach Modus wählen ───────────────────────────────
+
+async function createDialect() {
+  if (config.db.driver === "sqlite") {
+    const { default: SQLite } = await import("better-sqlite3");
+    const { applySqliteSchema } = await import("./sqlite-schema.js");
+
+    mkdirSync(dirname(config.db.sqlitePath), { recursive: true });
+    const sqlite = new SQLite(config.db.sqlitePath);
+    // Desktop-App startet ohne separaten Migrationsschritt
+    applySqliteSchema(sqlite);
+    console.log(`🗄️  SQLite: ${config.db.sqlitePath}`);
+    return new SqliteDialect({ database: sqlite });
+  }
+
+  const { createPool } = await import("mysql2");
+  const pool = createPool({
+    host: config.db.host,
+    port: config.db.port,
+    user: config.db.user,
+    password: config.db.password,
+    database: config.db.name,
+    connectionLimit: 10,
+    timezone: "+00:00",
+  });
+  return new MysqlDialect({ pool: pool as any });
+}
+
+export const db = new Kysely<Database>({ dialect: await createDialect() });

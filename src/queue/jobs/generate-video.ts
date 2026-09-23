@@ -1,9 +1,10 @@
-import type { Job } from "bullmq";
+import type { JobLike as Job } from "../types.js";
 import { nanoid } from "nanoid";
-import { db, type ProjectSettings, parseSettings } from "../../db/index.js";
+import { db, isDuplicateKeyError, type ProjectSettings, parseSettings } from "../../db/index.js";
 import * as heygen from "../../services/heygen.js";
 import { transitionProofread } from "../../lib/state-machine.js";
-import { RateLimiter, withJitter } from "../../lib/rate-limiter.js";
+import { withJitter } from "../../lib/rate-limiter.js";
+import type { RateLimiter } from "../../lib/rate-limiter.js";
 import type { Queues } from "../index.js";
 
 interface GenerateVideoData {
@@ -36,10 +37,10 @@ export function createGenerateVideoProcessor(rateLimiter: RateLimiter, queues: Q
 
     await rateLimiter.acquire();
 
+    // v3: Captions werden immer generiert (settings.captions ist obsolet)
     const result = await heygen.generateVideoFromProofread(
       proofread.heygen_proofread_id!,
       {
-        captions: settings.captions,
         translate_audio_only: settings.translate_audio_only,
       }
     );
@@ -55,12 +56,12 @@ export function createGenerateVideoProcessor(rateLimiter: RateLimiter, queues: Q
         id: translatedVideoId,
         proofread_id: proofreadId,
         project_id: proofread.project_id,
-        heygen_video_translate_id: result.data.video_translate_id,
+        heygen_video_translate_id: result.data.video_translation_id,
         idempotency_key: idempotencyKey,
         status: "processing",
       }).execute();
     } catch (err: any) {
-      if (err.code === "ER_DUP_ENTRY") {
+      if (isDuplicateKeyError(err)) {
         console.log(`⏭️ TranslatedVideo already exists: ${idempotencyKey}`);
         return;
       }
@@ -71,14 +72,14 @@ export function createGenerateVideoProcessor(rateLimiter: RateLimiter, queues: Q
     await transitionProofread(proofreadId, ["completed", "edited"], "generating");
 
     await queues.pollVideo.add(
-      `poll-video-${result.data.video_translate_id}`,
+      `poll-video-${result.data.video_translation_id}`,
       {
         translatedVideoId,
-        heygenVideoTranslateId: result.data.video_translate_id,
+        heygenVideoTranslateId: result.data.video_translation_id,
         proofreadId,
       },
       {
-        jobId: `poll-video:${result.data.video_translate_id}`,
+        jobId: `poll-video:${result.data.video_translation_id}`,
         delay: withJitter(60_000),
         attempts: 120,
         backoff: { type: "fixed", delay: 60_000 },
