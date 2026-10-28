@@ -22,18 +22,18 @@ wird nur die Infrastrukturschicht (`src/db/index.ts`, `src/queue/index.ts`,
 ### Mac-App bauen und starten
 
 ```bash
-npm run desktop:rebuild   # einmalig: better-sqlite3 für Electrons ABI bauen
-npm run desktop           # App im Entwicklungsmodus starten
-npm run dist:mac          # .dmg bauen → ~/Builds/heygen-proofreader/
+pnpm run desktop:rebuild   # einmalig: better-sqlite3 für Electrons ABI bauen
+pnpm run desktop           # App im Entwicklungsmodus starten
+pnpm run dist:mac          # .dmg bauen → ~/Builds/heygen-proofreader/
 
-npm run dev:desktop       # Desktop-Laufzeit headless auf Port 3010 (ohne Electron)
+pnpm run dev:desktop       # Desktop-Laufzeit headless auf Port 3010 (ohne Electron)
 ```
 
 Der Build landet bewusst **außerhalb des Projektordners**: Das Repository liegt in
 Dropbox, und der Sync greift während des Packens in das `.app`-Bündel ein — die
 Signierung schlägt dann mit „Application … could not be found“ fehl.
 
-`npm run desktop` setzt `env -u ELECTRON_RUN_AS_NODE`, weil VS-Code-Terminals
+`pnpm run desktop` setzt `env -u ELECTRON_RUN_AS_NODE`, weil VS-Code-Terminals
 diese Variable vererben; Electron würde sonst als reines Node starten und beim
 Import von `electron` scheitern.
 
@@ -52,7 +52,7 @@ plus Notarisierung vorbei (Apple Developer Program, ~99 €/Jahr).
 
 Tailwind, HTMX samt Erweiterungen und die Icon-Schrift werden **lokal
 ausgeliefert**, nicht per CDN — sonst würde ein unpkg-Ausfall die gesamte
-Oberfläche lahmlegen. `npm run build` erzeugt alles nach `public/static/`:
+Oberfläche lahmlegen. `pnpm run build` erzeugt alles nach `public/static/`:
 
 - `app.css` — Tailwind v3, gegen die Templates gebaut (~19 KB statt der
   JIT-Compiler-CDN). v3, weil die Oberfläche dagegen entwickelt wurde; v4 hat
@@ -63,7 +63,7 @@ Oberfläche lahmlegen. `npm run build` erzeugt alles nach `public/static/`:
   fällt es auf die vollständige Schrift aus `node_modules` zurück.
 - `htmx.min.js` und die beiden Erweiterungen aus `node_modules`.
 
-Neue Icons erscheinen erst nach `npm run build` — der Subset wird beim Bauen
+Neue Icons erscheinen erst nach `pnpm run build` — der Subset wird beim Bauen
 aus den Templates abgeleitet.
 
 Beim ersten Start fragt die App den HeyGen-API-Key ab und legt ihn zusammen mit
@@ -136,9 +136,9 @@ Download-Links: `GET /api/translated/:id/asset/video|vtt|srt` (signed URLs).
 
 ### 1. Separate Web + Worker Prozesse
 ```bash
-npm run dev        # Web: HTTP Server
-npm run dev:worker # Worker: BullMQ Processors
-npm run dev:all    # Beide parallel (concurrently)
+pnpm run dev        # Web: HTTP Server
+pnpm run dev:worker # Worker: BullMQ Processors
+pnpm run dev:all    # Beide parallel (concurrently)
 ```
 
 ### 2. Idempotenz & Dedup
@@ -180,7 +180,7 @@ Alle Downloads über **Signed URLs** (zeitlich begrenzt). Keine öffentlichen Da
 ```bash
 # 1. Clone & Install
 git clone <repo> && cd heygen-proofreader
-npm install
+pnpm install
 
 # 2. Konfiguration
 cp .env.example .env
@@ -189,15 +189,15 @@ cp .env.example .env
 # → STORAGE_PROVIDER wählen + konfigurieren
 
 # 3. Datenbank
-npm run db:migrate
+pnpm run db:migrate
 
 # 4. Starten (Development)
-npm run dev:all   # Web + Worker parallel
+pnpm run dev:all   # Web + Worker parallel
 
 # 5. Starten (Production)
-npm run build
-npm run start:web &
-npm run start:worker &
+pnpm run build
+pnpm run start:web &
+pnpm run start:worker &
 ```
 
 ## Datenmodell
