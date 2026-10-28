@@ -1,0 +1,6 @@
+# Flache node_modules wie bei npm (Docker-COPY einzelner Pakete bzw. electron-builder)
+nodeLinker: hoisted
+allowBuilds:
+  electron-winstaller: true
+  esbuild: true
+  msgpackr-extract: true

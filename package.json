@@ -10,16 +10,16 @@
     "dev:worker": "tsx watch src/worker.ts",
     "dev:all": "concurrently \"npm:dev\" \"npm:dev:worker\"",
     "dev:desktop": "APP_MODE=desktop PORT=3010 tsx watch src/desktop.ts",
-    "build": "tsc && npm run build:css && node scripts/build-icon-font.mjs && node scripts/copy-assets.mjs",
+    "build": "tsc && pnpm run build:css && node scripts/build-icon-font.mjs && node scripts/copy-assets.mjs",
     "build:css": "tailwindcss -i src/styles/app.css -o public/static/app.css --minify",
     "start:web": "node dist/web.js",
     "start:worker": "node dist/worker.js",
     "db:migrate": "tsx src/db/migrate.ts",
-    "desktop": "npm run build && env -u ELECTRON_RUN_AS_NODE electron .",
+    "desktop": "pnpm run build && env -u ELECTRON_RUN_AS_NODE electron .",
     "desktop:rebuild": "electron-builder install-app-deps",
-    "desktop:rebuild-node": "npm rebuild better-sqlite3",
+    "desktop:rebuild-node": "pnpm rebuild better-sqlite3",
     "icon": "node scripts/make-icon.mjs",
-    "dist:mac": "npm run build && npm run icon && env -u ELECTRON_RUN_AS_NODE electron-builder --mac -c.directories.output=$HOME/Builds/heygen-proofreader"
+    "dist:mac": "pnpm run build && pnpm run icon && env -u ELECTRON_RUN_AS_NODE electron-builder --mac -c.directories.output=$HOME/Builds/heygen-proofreader"
   },
   "build": {
     "appId": "design.breed.heygen-proofreader",
@@ -90,5 +90,6 @@
     "tailwindcss": "^3.4.19",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0"
-  }
+  },
+  "packageManager": "pnpm@12.15.0"
 }
